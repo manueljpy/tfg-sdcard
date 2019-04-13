@@ -44,7 +44,6 @@
 #include <cutils/log.h>
 #include <cutils/multiuser.h>
 #include <cutils/properties.h>
-#include <packagelistparser/packagelistparser.h>
 
 #include <private/android_filesystem_config.h>
 
@@ -1914,21 +1913,32 @@ static bool package_parse_callback(pkg_info *info, void *userdata) {
     return true;
 }
 
-static bool read_package_list(struct fuse_global* global) {
+static int read_package_list(struct fuse_global* global) {
     pthread_mutex_lock(&global->lock);
-
     hashmapForEach(global->package_to_appid, remove_str_to_int, global->package_to_appid);
-
-    bool rc = packagelist_parse(package_parse_callback, global);
+    FILE* file = fopen(kPackagesListFile, "r");
+    if (!file) {
+        ERROR("failed to open package list: %s\n", strerror(errno));
+        pthread_mutex_unlock(&global->lock);
+        return -1;
+    }
+    char buf[512];
+    while (fgets(buf, sizeof(buf), file) != NULL) {
+        char package_name[512];
+        int appid;
+        char gids[512];
+        if (sscanf(buf, "%s %d %*d %*s %*s %s", package_name, &appid, gids) == 3) {
+            char* package_name_dup = strdup(package_name);
+            hashmapPut(global->package_to_appid, package_name_dup, (void*) (uintptr_t) appid);
+        }
+    }
     TRACE("read_package_list: found %zu packages\n",
             hashmapSize(global->package_to_appid));
-
+    fclose(file);
     /* Regenerate ownership details using newly loaded mapping */
     derive_permissions_recursive_locked(global->fuse_default, &global->root);
-
     pthread_mutex_unlock(&global->lock);
-
-    return rc;
+    return 0;
 }
 
 static void watch_package_list(struct fuse_global* global) {
