@@ -48,7 +48,7 @@
 
 #include <private/android_filesystem_config.h>
 
-#include "mm.h"
+#include <mm.h>
 #include <log.h>
 #include <list.h>
 #include <return-codes.h>
@@ -2273,7 +2273,7 @@ static bool should_use_sdcardfs(void) {
     }
 }
 
-int main(int argc, char **argv) {
+int sdcard_main(int argc, char **argv) {
     const char *source_path = NULL;
     const char *label = NULL;
     uid_t uid = 0;
